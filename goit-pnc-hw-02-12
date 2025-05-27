@@ -1,0 +1,165 @@
+from collections import Counter
+
+def calculate_ic(text):
+    """
+    Обчислює індекс відповідності (ІВ) для даного тексту.
+    Ігнорує символи, що не є літерами.
+    """
+    text = ''.join(filter(str.isalpha, text)).upper()
+    if not text:
+        return 0.0
+
+    n = len(text)
+    if n < 2: # Неможливо обчислити ІВ для тексту менше 2 символів
+        return 0.0
+
+    # Підрахунок частоти кожної літери
+    letter_counts = Counter(text)
+
+    # Формула для ІВ: сума (частота_літери * (частота_літери - 1)) / (N * (N - 1))
+    ic = sum(count * (count - 1) for count in letter_counts.values()) / (n * (n - 1))
+    return ic
+
+def find_key_length_friedman(ciphertext, max_key_length=20):
+    """
+    Визначає ймовірну довжину ключа за допомогою тесту Фрідмана.
+
+    :param ciphertext: Зашифрований текст.
+    :param max_key_length: Максимальна довжина ключа для перевірки.
+    :return: Ймовірна довжина ключа.
+    """
+    cleaned_ciphertext = ''.join(filter(str.isalpha, ciphertext)).upper()
+    n = len(cleaned_ciphertext)
+
+    # ІВ для англійської мови
+    english_ic = 0.067
+    # ІВ для випадкового тексту
+    random_ic = 0.038
+
+    best_key_length = 1
+    min_ic_diff = float('inf') # Мінімальна різниця між середнім ІВ і ІВ англійської мови
+
+    print("--- Визначення довжини ключа (тест Фрідмана) ---")
+    print(f"Довжина чистого зашифрованого тексту: {n}")
+
+    for k_len in range(1, max_key_length + 1):
+        ics = []
+        for i in range(k_len):
+            # Створюємо підтекст: кожна k_len-та літера, починаючи з i-ї
+            subtext = cleaned_ciphertext[i::k_len]
+            if len(subtext) > 1: # Обчислюємо ІВ тільки якщо підтекст достатньо довгий
+                ics.append(calculate_ic(subtext))
+
+        if ics:
+            avg_ic = sum(ics) / len(ics)
+            # Чим ближче avg_ic до english_ic, тим ймовірніша довжина ключа
+            diff = abs(avg_ic - english_ic)
+            # print(f"Довжина ключа: {k_len}, Середній ІВ: {avg_ic:.4f}, Різниця: {diff:.4f}")
+            if diff < min_ic_diff:
+                min_ic_diff = diff
+                best_key_length = k_len
+
+    print(f"Найбільш ймовірна довжина ключа: {best_key_length} (з ІВ, найближчим до {english_ic})")
+    return best_key_length
+
+def decrypt_vigenere_with_key_length(ciphertext, key_length):
+    """
+    Дешифрує зашифрований текст, знаючи довжину ключа,
+    використовуючи частотний аналіз для кожного підтексту.
+    """
+    cleaned_ciphertext = ''.join(filter(str.isalpha, ciphertext)).upper()
+
+    # Очікувані частоти літер в англійській мові (приблизні)
+    # E T A O I N S H R D L U C M W F G Y P B V K J X Q Z
+    english_frequencies = {
+        'A': 0.08167, 'B': 0.01492, 'C': 0.02782, 'D': 0.04253, 'E': 0.12702,
+        'F': 0.02228, 'G': 0.02015, 'H': 0.06094, 'I': 0.06966, 'J': 0.00153,
+        'K': 0.00772, 'L': 0.04025, 'M': 0.02406, 'N': 0.06749, 'O': 0.07507,
+        'P': 0.01929, 'Q': 0.00095, 'R': 0.05987, 'S': 0.06327, 'T': 0.09056,
+        'U': 0.02758, 'V': 0.00978, 'W': 0.02360, 'X': 0.00150, 'Y': 0.01974,
+        'Z': 0.00074
+    }
+
+    # Знайти літеру з найбільшою частотою в англійській мові (E)
+    most_common_english_char = 'E'
+
+    key_chars = []
+
+    for i in range(key_length):
+        subtext = cleaned_ciphertext[i::key_length]
+
+        if not subtext:
+            key_chars.append('A') # Fallback if subtext is empty
+            continue
+
+        # Підрахунок частоти літер у підтексті
+        subtext_counts = Counter(subtext)
+        total_subtext_chars = len(subtext)
+
+        # Знайти літеру з найбільшою частотою у підтексті
+        if subtext_counts:
+            most_common_subtext_char = subtext_counts.most_common(1)[0][0]
+        else:
+            key_chars.append('A')
+            continue
+
+        # Визначити можливий зсув (літера підтексту - літера 'E')
+        # char_code_shift = (ord(most_common_subtext_char) - ord(most_common_english_char)) % 26
+
+        # Більш надійний метод: перебираємо всі можливі зсуви і шукаємо найкращий ІВ
+        best_shift = 0
+        min_chi_squared = float('inf')
+
+        # Пробуємо всі 26 можливих зсувів (шифрів Цезаря) для поточного підтексту
+        for shift in range(26):
+            shifted_subtext = ""
+            for char_code in subtext:
+                shifted_char_code = (ord(char_code) - ord('A') - shift + 26) % 26
+                shifted_subtext += chr(shifted_char_code + ord('A'))
+
+            # Обчислюємо chi-квадрат статистику для кожного зсуву
+            # Чим менше chi-квадрат, тим ближче розподіл частот до англійської
+            chi_squared = 0.0
+            shifted_subtext_counts = Counter(shifted_subtext)
+            total_shifted_subtext_chars = len(shifted_subtext)
+
+            for char_code in range(26):
+                char = chr(ord('A') + char_code)
+                observed_freq = shifted_subtext_counts[char] / total_shifted_subtext_chars if total_shifted_subtext_chars > 0 else 0
+                expected_freq = english_frequencies.get(char, 0)
+
+                if expected_freq > 0: # Уникнення ділення на нуль
+                    chi_squared += ((observed_freq - expected_freq)**2) / expected_freq
+
+            if chi_squared < min_chi_squared:
+                min_chi_squared = chi_squared
+                best_shift = shift
+
+        # Літера ключа для цього підтексту
+        key_char = chr(ord('A') + best_shift)
+        key_chars.append(key_char)
+
+    guessed_key = "".join(key_chars)
+    print(f"Здогаданий ключ: {guessed_key}")
+
+    # Дешифруємо весь текст за допомогою знайденого ключа
+    decrypted_text = vigenere_cipher(ciphertext, guessed_key, mode='decrypt')
+    return decrypted_text
+
+# --- Застосування для Рівня 2 ---
+
+# Зашифрований текст (використовуємо той самий, що й на Рівні 1)
+encrypted_text_for_level2 = encrypted_text
+
+# 1. Визначення довжини ключа за допомогою тесту Фрідмана
+print("\n")
+guessed_key_length = find_key_length_friedman(encrypted_text_for_level2)
+
+# 2. Дешифрування тексту за допомогою знайденої довжини ключа (частотний аналіз)
+decrypted_text_level2 = decrypt_vigenere_with_key_length(encrypted_text_for_level2, guessed_key_length)
+
+print("\n--- Розшифрований текст (Рівень 2) ---")
+print(decrypted_text_level2)
+
+print("\nОригінальний текст збігається з дешифрованим (Рівень 2):",
+      ''.join(filter(str.isalpha, original_text)).upper() == ''.join(filter(str.isalpha, decrypted_text_level2)).upper())
