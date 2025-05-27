@@ -1,0 +1,245 @@
+import math
+import string # Для використання в обох шифрах
+
+# --- Функція vigenere_cipher з попереднього завдання ---
+# (Скопійовано для самостійного запуску Рівня 2)
+def vigenere_cipher(text, key, mode='encrypt'):
+    """
+    Шифрує або дешифрує текст за допомогою шифру Віженера.
+    (Скопійовано з попереднього завдання)
+    """
+    result = []
+    key_index = 0
+    key = key.upper()
+    alphabet = string.ascii_uppercase
+    alphabet_size = len(alphabet)
+
+    for char in text:
+        if char.isalpha():
+            is_upper = char.isupper()
+            char_upper = char.upper()
+
+            try:
+                char_index = alphabet.index(char_upper)
+            except ValueError:
+                 result.append(char)
+                 continue
+
+            key_char = key[key_index % len(key)]
+            key_shift = alphabet.index(key_char)
+
+            if mode == 'encrypt':
+                shifted_index = (char_index + key_shift) % alphabet_size
+            elif mode == 'decrypt':
+                shifted_index = (char_index - key_shift + alphabet_size) % alphabet_size
+            else:
+                raise ValueError("Режим має бути 'encrypt' або 'decrypt'")
+
+            shifted_char = alphabet[shifted_index]
+
+            if not is_upper:
+                shifted_char = shifted_char.lower()
+
+            result.append(shifted_char)
+            key_index += 1
+        else:
+            result.append(char)
+
+    return "".join(result)
+# --- Кінець функції vigenere_cipher ---
+
+# --- Функції columnar_transposition_encrypt та decrypt з Рівня 1 цього завдання ---
+# (Скопійовано для самостійного запуску Рівня 2)
+
+def columnar_transposition_encrypt(text, key):
+    """
+    Шифрує текст за допомогою простої стовпцевої перестановки.
+    (Скопійовано з Рівня 1 цього завдання)
+    """
+    # У комбінованому шифрі, вхідний текст може вже бути результатом іншого шифрування
+    # Тому ми не видаляємо пробіли і не змінюємо регістр тут,
+    # але зберігаємо логіку padding та перестановки.
+    # Припускаємо, що попередній шифр (Віженера) залишив літери та інші символи як є.
+    # Для простоти, будемо працювати тільки з літерами верхнього регістру для перестановки,
+    # ігноруючи інші символи, як це робилося в Рівні 1.
+    cleaned_text = "".join(filter(str.isalpha, text)).upper() # Фільтруємо тільки літери
+    key = key.upper()
+    key_length = len(key)
+
+    key_indexed = sorted([(key[i], i) for i in range(key_length)])
+    column_order = [item[1] for item in key_indexed]
+
+    num_rows = math.ceil(len(cleaned_text) / key_length)
+    padding_needed = (num_rows * key_length) - len(cleaned_text)
+    padded_text = cleaned_text + 'X' * padding_needed
+
+    matrix = []
+    for i in range(num_rows):
+        row = list(padded_text[i * key_length : (i + 1) * key_length])
+        matrix.append(row)
+
+    ciphertext = ""
+    for col_index in column_order:
+        for row_index in range(num_rows):
+            ciphertext += matrix[row_index][col_index]
+
+    return ciphertext
+
+def columnar_transposition_decrypt(ciphertext, key):
+    """
+    Дешифрує текст, зашифрований простою стовпцевою перестановкою.
+    (Скопійовано з Рівня 1 цього завдання)
+    """
+    # При дешифруванні, ми отримуємо текст, який є результатом перестановки.
+    # Він складається тільки з літер (та padding).
+    # Ми дешифруємо його, а потім повертаємо чистий текст без padding.
+    cleaned_ciphertext = "".join(filter(str.isalpha, ciphertext)).upper() # На всяк випадок
+    key = key.upper()
+    key_length = len(key)
+    ciphertext_length = len(cleaned_ciphertext) # Використовуємо довжину чистого тексту
+
+    key_indexed = sorted([(key[i], i) for i in range(key_length)])
+    encryption_order = [item[1] for item in key_indexed]
+
+    num_rows = ciphertext_length // key_length
+
+    num_short_columns = (num_rows * key_length) - ciphertext_length
+    column_lengths = [num_rows] * key_length
+
+    sorted_original_indices = [item[1] for item in sorted([(key[i], i) for i in range(key_length)])]
+    short_column_original_indices = sorted_original_indices[key_length - num_short_columns:]
+
+    original_to_encryption_pos = [(encryption_order[i], i) for i in range(key_length)]
+    original_to_encryption_pos.sort()
+
+    for original_index in short_column_original_indices:
+         position_in_encryption_order = [pos for orig, pos in original_to_encryption_pos if orig == original_index][0]
+         column_lengths[position_in_encryption_order] -= 1
+
+    matrix = [['' for _ in range(key_length)] for _ in range(num_rows)]
+    ciphertext_index = 0
+
+    for i, col_index_in_encryption_order in enumerate(encryption_order):
+         current_column_length = column_lengths[i]
+         for row_index in range(current_column_length):
+             matrix[row_index][col_index_in_encryption_order] = cleaned_ciphertext[ciphertext_index]
+             ciphertext_index += 1
+
+    decrypted_text = ""
+    for row in matrix:
+        decrypted_text += "".join(row)
+
+    decrypted_text = decrypted_text.rstrip('X')
+
+    return decrypted_text
+
+# --- Кінець функцій стовпцевої перестановки ---
+
+
+def combined_encrypt(text, vigenere_key, transposition_key):
+    """
+    Шифрує текст: спочатку Віженера, потім стовпцева перестановка.
+
+    :param text: Оригінальний текст.
+    :param vigenere_key: Ключ для шифру Віженера.
+    :param transposition_key: Ключ для стовпцевої перестановки.
+    :return: Комбінований зашифрований текст.
+    """
+    # Етап 1: Шифр Віженера
+    vigenere_encrypted = vigenere_cipher(text, vigenere_key, mode='encrypt')
+    # Етап 2: Табличний шифр (застосовуємо до результату Віженера)
+    combined_encrypted = columnar_transposition_encrypt(vigenere_encrypted, transposition_key)
+    return combined_encrypted
+
+def combined_decrypt(ciphertext, vigenere_key, transposition_key):
+    """
+    Дешифрує текст: спочатку стовпцева перестановка, потім Віженера.
+
+    :param ciphertext: Комбінований зашифрований текст.
+    :param vigenere_key: Ключ для шифру Віженера.
+    :param transposition_key: Ключ для стовпцевої перестановки.
+    :return: Дешифрований текст.
+    """
+    # Етап 1 (Дешифрування): Табличний шифр (застосовуємо до комбінованого шифротексту)
+    transposition_decrypted = columnar_transposition_decrypt(ciphertext, transposition_key)
+    # Етап 2 (Дешифрування): Шифр Віженера (застосовуємо до результату дешифрування перестановки)
+    # Важливо: Результат columnar_transposition_decrypt - це тільки літери (без пробілів, розділових знаків і в верхньому регістрі)
+    # Шифр Віженера в нашій реалізації зберігає регістр і неалфавітні символи.
+    # Щоб коректно дешифрувати результат перестановки, який є "чистим" текстом,
+    # ми повинні застосувати дешифрування Віженера до цього чистого тексту.
+    # Однак, оригінальний текст містив пробіли та розділові знаки.
+    # Наша поточна реалізація columnar_transposition_encrypt викидає їх.
+    # Для коректного зворотного перетворення, потрібно або модифікувати
+    # columnar_transposition_encrypt/decrypt для збереження позицій неалфавітних символів,
+    # або застосувати дешифрування Віженера тільки до літерної частини.
+    # Для простоти, застосуємо дешифрування Віженера тільки до отриманих літер.
+    # Це означає, що кінцевий дешифрований текст буде без пробілів/розділових знаків,
+    # але з правильними літерами та їхнім регістром (якщо Віженера його зберіг).
+
+    # Оскільки columnar_transposition_decrypt повертає тільки літери верхнього регістру,
+    # застосуємо vigenere_cipher до цього результату.
+    final_decrypted = vigenere_cipher(transposition_decrypted, vigenere_key, mode='decrypt')
+
+    # Зауваження: Ця реалізація не відновлює пробіли та розділові знаки з оригінального тексту
+    # після дешифрування перестановки. Для повного відновлення потрібна більш складна логіка
+    # збереження структури оригінального тексту перед перестановкою.
+
+    return final_decrypted
+
+
+# Оригінальний текст (той самий, що й на Рівні 1)
+original_text = """The artist is the
+creator of beautiful things. To reveal art and conceal the artist is art's aim.
+The critic is he who can translate into another manner or a new material his
+impression of beautiful things. The highest, as the lowest, form of criticism is
+a mode of autobiography. Those who find ugly meanings in beautiful things are
+corrupt without being charming. This is a fault. Those who find beautiful
+meanings in beautiful things are the cultivated. For these there is hope. They
+are the elect to whom beautiful things mean only Beauty. There is no such thing
+as a moral or an immoral book. Books are well written, or badly written. That
+is all. The nineteenth-century dislike of realism is the rage of Caliban seeing
+his own face in a glass. The nineteenth-century dislike of Romanticism is the
+rage of Caliban not seeing his own face in a glass. The moral life of man forms
+part of the subject matter of the artist, but the morality of art consists in
+the perfect use of an imperfect medium. No artist desires to prove anything.
+Even things that are true can be proved. No artist has ethical sympathies. An
+ethical sympathy in an artist is an unpardonable mannerism of style. No artist
+is ever morbid. The artist can express everything. Thought and language are to
+the artist instruments of an art. Vice and virtue are to the artist materials
+for an art. From the point of view of form, the type of all the arts is the art
+of the musician. From the point of view of feeling, the actor's craft is the
+type. All art is at once surface and symbol. Those who go beneath the surface
+do so at their peril. Those who read the symbol do so at their peril. It is the
+spectator, and not life, that art really mirrors. Diversity of opinion about a
+work of art shows that the work is new, complex, vital. When critics disagree
+the artist is in accord with himself. We can forgive a man for making a useful
+thing as long as he does not admire it. The only excuse for making a useless
+thing is that one admires it intensely. All art is quite useless."""
+
+vigenere_key_level2 = "CRYPTOGRAPHY"
+transposition_key_level2 = "CRYPTO"
+
+# --- Виконання Рівня 2 ---
+print("\n--- Рівень 2: Комбінований шифр (Віженера + Табличний) ---")
+
+# Шифрування
+combined_encrypted_text = combined_encrypt(original_text, vigenere_key_level2, transposition_key_level2)
+print("\nКомбінований зашифрований текст:")
+print(combined_encrypted_text)
+
+# Дешифрування
+combined_decrypted_text = combined_decrypt(combined_encrypted_text, vigenere_key_level2, transposition_key_level2)
+print("\nКомбінований дешифрований текст:")
+print(combined_decrypted_text)
+
+# Перевірка (порівнюємо чисту літерну частину)
+# Оскільки columnar_transposition_decrypt повертає тільки літери верхнього регістру,
+# а vigenere_cipher застосовується до цього результату,
+# кінцевий дешифрований текст також буде без пробілів/розділових знаків, але з правильним регістром літер.
+# Для коректного порівняння, потрібно порівняти літерну частину оригінального тексту
+# (зберегти регістр, але видалити неалфавітні символи) з результатом.
+
+# Очищаємо оригінальний текст, зберігаючи регістр літер
+cleaned_original_letters = "".join(filter(str.isalpha, original_text))
+
+print("\nПеревірка: Літерна частина дешифрованого тексту збігається з оригінальною (з урахуванням регістру)?", cleaned_original_letters == combined_decrypted_text)
