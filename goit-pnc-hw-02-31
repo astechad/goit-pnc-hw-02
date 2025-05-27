@@ -1,0 +1,159 @@
+import math
+import string # Для зручності, хоча в цьому шифрі не використовується алфавіт напряму
+
+def columnar_transposition_encrypt(text, key):
+    """
+    Шифрує текст за допомогою простої стовпцевої перестановки.
+
+    :param text: Текст для шифрування.
+    :param key: Ключ (рядок).
+    :return: Зашифрований текст.
+    """
+    # Видаляємо пробіли та переводимо у верхній регістр для простоти
+    # У реальних сценаріях можна зберегти пробіли або використовувати інший метод
+    cleaned_text = "".join(text.split()).upper()
+    key = key.upper()
+    key_length = len(key)
+
+    # Визначаємо порядок стовпців за алфавітним порядком літер ключа
+    # Створюємо список пар (літера ключа, індекс)
+    key_indexed = sorted([(key[i], i) for i in range(key_length)])
+    # Отримуємо порядок індексів стовпців для читання
+    column_order = [item[1] for item in key_indexed]
+
+    # Обчислюємо кількість рядків
+    num_rows = math.ceil(len(cleaned_text) / key_length)
+
+    # Додаємо "заповнювач" (padding), якщо текст не заповнює останній рядок повністю
+    padding_needed = (num_rows * key_length) - len(cleaned_text)
+    padded_text = cleaned_text + 'X' * padding_needed # Використовуємо 'X' як заповнювач
+
+    # Записуємо текст у матрицю (список списків) по рядках
+    matrix = []
+    for i in range(num_rows):
+        row = list(padded_text[i * key_length : (i + 1) * key_length])
+        matrix.append(row)
+
+    # Читаємо текст по стовпцях у визначеному порядку
+    ciphertext = ""
+    for col_index in column_order:
+        for row_index in range(num_rows):
+            ciphertext += matrix[row_index][col_index]
+
+    return ciphertext
+
+def columnar_transposition_decrypt(ciphertext, key):
+    """
+    Дешифрує текст, зашифрований простою стовпцевою перестановкою.
+
+    :param ciphertext: Зашифрований текст.
+    :param key: Ключ (рядок).
+    :return: Дешифрований текст.
+    """
+    key = key.upper()
+    key_length = len(key)
+    ciphertext_length = len(ciphertext)
+
+    # Визначаємо порядок стовпців для запису (зворотний до порядку читання при шифруванні)
+    key_indexed = sorted([(key[i], i) for i in range(key_length)])
+    # Отримуємо порядок індексів стовпців, у якому вони були прочитані при шифруванні
+    encryption_order = [item[1] for item in key_indexed]
+
+    # Обчислюємо кількість рядків
+    num_rows = ciphertext_length // key_length # Довжина шифротексту вже включає padding
+
+    # Визначаємо довжину кожного стовпця в шифротексті
+    # Деякі стовпці можуть бути коротшими, якщо був padding
+    # Кількість коротких стовпців дорівнює кількості символів padding
+    num_short_columns = (num_rows * key_length) - ciphertext_length
+    column_lengths = [num_rows] * key_length
+
+    # Короткі стовпці - це останні стовпці в алфавітному порядку ключа
+    # Знаходимо індекси стовпців, які були останніми при читанні (відповідно, коротшими)
+    # Сортуємо індекси оригінальних стовпців за порядком шифрування
+    sorted_original_indices = [item[1] for item in sorted([(key[i], i) for i in range(key_length)])]
+    # Індекси стовпців, які були коротшими, це останні num_short_columns елементів у цьому списку
+    # Ці індекси відповідають оригінальним позиціям стовпців у матриці
+    short_column_original_indices = sorted_original_indices[key_length - num_short_columns:]
+
+    # Тепер потрібно знайти, які стовпці в *порядку шифрування* були короткими
+    # Створюємо список пар (оригінальний індекс, позиція в порядку шифрування)
+    original_to_encryption_pos = [(encryption_order[i], i) for i in range(key_length)]
+    # Сортуємо за оригінальним індексом, щоб легко знайти позицію в порядку шифрування
+    original_to_encryption_pos.sort()
+
+    # Зменшуємо довжину відповідних стовпців у списку column_lengths
+    for original_index in short_column_original_indices:
+         # Знаходимо позицію цього стовпця в порядку шифрування
+         position_in_encryption_order = [pos for orig, pos in original_to_encryption_pos if orig == original_index][0]
+         column_lengths[position_in_encryption_order] -= 1
+
+
+    # Створюємо порожню матрицю відповідного розміру
+    matrix = [['' for _ in range(key_length)] for _ in range(num_rows)]
+    ciphertext_index = 0
+
+    # Заповнюємо матрицю стовпець за стовпцем у порядку шифрування
+    for i, col_index_in_encryption_order in enumerate(encryption_order):
+         current_column_length = column_lengths[i]
+         for row_index in range(current_column_length):
+             matrix[row_index][col_index_in_encryption_order] = ciphertext[ciphertext_index]
+             ciphertext_index += 1
+
+    # Читаємо текст з матриці по рядках
+    decrypted_text = ""
+    for row in matrix:
+        decrypted_text += "".join(row)
+
+    # Видаляємо заповнювач 'X' з кінця
+    decrypted_text = decrypted_text.rstrip('X')
+
+    return decrypted_text
+
+# Оригінальний текст
+original_text = """The artist is the
+creator of beautiful things. To reveal art and conceal the artist is art's aim.
+The critic is he who can translate into another manner or a new material his
+impression of beautiful things. The highest, as the lowest, form of criticism is
+a mode of autobiography. Those who find ugly meanings in beautiful things are
+corrupt without being charming. This is a fault. Those who find beautiful
+meanings in beautiful things are the cultivated. For these there is hope. They
+are the elect to whom beautiful things mean only Beauty. There is no such thing
+as a moral or an immoral book. Books are well written, or badly written. That
+is all. The nineteenth-century dislike of realism is the rage of Caliban seeing
+his own face in a glass. The nineteenth-century dislike of Romanticism is the
+rage of Caliban not seeing his own face in a glass. The moral life of man forms
+part of the subject matter of the artist, but the morality of art consists in
+the perfect use of an imperfect medium. No artist desires to prove anything.
+Even things that are true can be proved. No artist has ethical sympathies. An
+ethical sympathy in an artist is an unpardonable mannerism of style. No artist
+is ever morbid. The artist can express everything. Thought and language are to
+the artist instruments of an art. Vice and virtue are to the artist materials
+for an art. From the point of view of form, the type of all the arts is the art
+of the musician. From the point of view of feeling, the actor's craft is the
+type. All art is at once surface and symbol. Those who go beneath the surface
+do so at their peril. Those who read the symbol do so at their peril. It is the
+spectator, and not life, that art really mirrors. Diversity of opinion about a
+work of art shows that the work is new, complex, vital. When critics disagree
+the artist is in accord with himself. We can forgive a man for making a useful
+thing as long as he does not admire it. The only excuse for making a useless
+thing is that one admires it intensely. All art is quite useless."""
+
+key_level1 = "MATRIX"
+
+# --- Виконання Рівня 1 ---
+print("--- Рівень 1: Табличний шифр ---")
+
+# Шифрування
+encrypted_text_level1 = columnar_transposition_encrypt(original_text, key_level1)
+print("\nЗашифрований текст:")
+print(encrypted_text_level1)
+
+# Дешифрування
+decrypted_text_level1 = columnar_transposition_decrypt(encrypted_text_level1, key_level1)
+print("\nДешифрований текст:")
+print(decrypted_text_level1)
+
+# Перевірка (порівнюємо чисту літерну частину, оскільки шифр ігнорує пробіли та регістр)
+cleaned_original = "".join(original_text.split()).upper()
+print("\nПеревірка: Дешифрована літерна частина збігається з оригінальною?", cleaned_original == decrypted_text_level1)
