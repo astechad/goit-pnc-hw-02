@@ -1,0 +1,80 @@
+def vigenere_cipher(text, key, mode='encrypt'):
+    """
+    Шифрує або дешифрує текст за допомогою шифру Віженера.
+
+    :param text: Текст для шифрування/дешифрування.
+    :param key: Ключ шифрування (рядок).
+    :param mode: Режим 'encrypt' (шифрування) або 'decrypt' (дешифрування).
+    :return: Зашифрований або дешифрований текст.
+    """
+    result = []
+    key_index = 0
+    key = key.upper()  # Переводимо ключ у верхній регістр
+
+    for char in text:
+        if 'A' <= char.upper() <= 'Z':
+            # Визначаємо базовий код для великих або малих літер
+            start_char_code = ord('A') if char.isupper() else ord('a')
+
+            # Обчислюємо зсув на основі літери ключа
+            key_shift = ord(key[key_index % len(key)]) - ord('A')
+
+            if mode == 'encrypt':
+                # Шифрування: (літера + зсув) % 26
+                encrypted_char_code = (ord(char) - start_char_code + key_shift) % 26
+                result.append(chr(encrypted_char_code + start_char_code))
+            elif mode == 'decrypt':
+                # Дешифрування: (літера - зсув + 26) % 26 (додаємо 26, щоб уникнути від'ємних значень)
+                decrypted_char_code = (ord(char) - start_char_code - key_shift + 26) % 26
+                result.append(chr(decrypted_char_code + start_char_code))
+
+            key_index += 1  # Переходимо до наступної літери ключа
+        else:
+            result.append(char)  # Залишаємо символи, що не є літерами, без змін
+    return "".join(result)
+
+# Частина тексту з передмови до книги Оскара Вайльда "Портрет Доріана Ґрея"
+original_text = """The artist is the
+creator of beautiful things. To reveal art and conceal the artist is art's aim.
+The critic is he who can translate into another manner or a new material his
+impression of beautiful things. The highest, as the lowest, form of criticism is
+a mode of autobiography. Those who find ugly meanings in beautiful things are
+corrupt without being charming. This is a fault. Those who find beautiful
+meanings in beautiful things are the cultivated. For these there is hope. They
+are the elect to whom beautiful things mean only Beauty. There is no such thing
+as a moral or an immoral book. Books are well written, or badly written. That
+is all. The nineteenth-century dislike of realism is the rage of Caliban seeing
+his own face in a glass. The nineteenth-century dislike of Romanticism is the
+rage of Caliban not seeing his own face in a glass. The moral life of man forms
+part of the subject matter of the artist, but the morality of art consists in
+the perfect use of an imperfect medium. No artist desires to prove anything.
+Even things that are true can be proved. No artist has ethical sympathies. An
+ethical sympathy in an artist is an unpardonable mannerism of style. No artist
+is ever morbid. The artist can express everything. Thought and language are to
+the artist instruments of an art. Vice and virtue are to the artist materials
+for an art. From the point of view of form, the type of all the arts is the art
+of the musician. From the point of view of feeling, the actor's craft is the
+type. All art is at once surface and symbol. Those who go beneath the surface
+do so at their peril. Those who read the symbol do so at their peril. It is the
+spectator, and not life, that art really mirrors. Diversity of opinion about a
+work of art shows that the work is new, complex, vital. When critics disagree
+the artist is in accord with himself. We can forgive a man for making a useful
+thing as long as he does not admire it. The only excuse for making a useless
+thing is that one admires it intensely. All art is quite useless."""
+
+key = "CRYPTOGRAPHY"
+
+# Шифрування тексту
+encrypted_text = vigenere_cipher(original_text, key, mode='encrypt')
+print("--- Зашифрований текст ---")
+print(encrypted_text)
+print("\n")
+
+# Дешифрування тексту
+decrypted_text = vigenere_cipher(encrypted_text, key, mode='decrypt')
+print("--- Дешифрований текст ---")
+print(decrypted_text)
+print("\n")
+
+# Перевірка, чи дешифрований текст відповідає оригінальному
+print("Оригінальний текст збігається з дешифрованим:", original_text == decrypted_text)
